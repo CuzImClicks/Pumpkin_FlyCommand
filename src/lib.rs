@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use log::info;
 use pumpkin::{
-    PERMISSION_REGISTRY,
     command::{
         CommandExecutor, CommandSender,
         args::{

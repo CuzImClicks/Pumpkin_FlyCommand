@@ -2,17 +2,11 @@ use async_trait::async_trait;
 use log::info;
 use pumpkin::{
     command::{
-        CommandExecutor, CommandSender,
         args::{
-            Arg, ConsumedArgs,
-            bounded_num::{BoundedNumArgumentConsumer, ToFromNumber},
-            players::PlayersArgumentConsumer,
-        },
-        dispatcher::CommandError,
-        tree::{
-            CommandTree,
-            builder::{argument, argument_default_name},
-        },
+            bounded_num::{BoundedNumArgumentConsumer, ToFromNumber}, players::PlayersArgumentConsumer, Arg, ConsumedArgs, FindArgDefaultName
+        }, dispatcher::CommandError, tree::{
+            builder::{argument, argument_default_name}, CommandTree
+        }, CommandExecutor, CommandSender
     },
     plugin::Context,
     server::Server,
@@ -21,6 +15,7 @@ use pumpkin_api_macros::{plugin_impl, plugin_method};
 use pumpkin_util::{
     PermissionLvl,
     permission::{Permission, PermissionDefault},
+    text::TextComponent,
 };
 
 const NAMES: [&str; 1] = ["fly"];
@@ -28,25 +23,33 @@ const DESCRIPTION: &str = "Gives you the ability to fly.";
 
 const PERMISSION_NODE: &str = "fly_command:fly_command";
 
+fn speed_consumer() -> BoundedNumArgumentConsumer<f32> {
+    BoundedNumArgumentConsumer::<f32>::new().name("speed").min(0.0)
+}
+
 #[plugin_method]
 async fn on_load(&mut self, server: &Context) -> Result<(), String> {
     pumpkin::init_log!();
     info!("Fly_Command plugin loaded!");
 
     let command = CommandTree::new(NAMES, DESCRIPTION)
-        .then(argument_default_name(PlayersArgumentConsumer).execute(NoSpeedExecutor))
         .then(
-            argument(
-                "speed",
-                BoundedNumArgumentConsumer::new().name("speed").min(0.0),
-            )
-            .execute(WithSpeedExecutor),
-        );
+            argument_default_name(PlayersArgumentConsumer)
+                .execute(NoSpeedExecutor)
+                .then(
+                    argument(
+                        "speed",
+                        speed_consumer(),
+                    )
+                    .execute(WithSpeedExecutor),
+                ),
+        )
+        .execute(BaseExecutor);
 
     let perm = Permission::new(
         PERMISSION_NODE,
         "description",
-        PermissionDefault::Op(PermissionLvl::Zero),
+        PermissionDefault::Op(PermissionLvl::One),
     );
     server.register_permission(perm).await?;
 
@@ -64,16 +67,20 @@ impl CommandExecutor for NoSpeedExecutor {
         _: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let Some(Arg::Players(targets)) = args.get("players") else {
-            return Err(CommandError::InvalidConsumption(Some(
-                "players".to_string(),
-            )));
+        let Some(Arg::Players(targets)) = args.get("target") else {
+            return Err(CommandError::InvalidConsumption(Some("target".to_string())));
         };
 
         for player in targets {
-            let mut abilities_lock = player.abilities.lock().await;
+            {
+                let mut abilities_lock = player.abilities.lock().await;
 
-            abilities_lock.allow_flying = !abilities_lock.allow_flying;
+                abilities_lock.allow_flying = !abilities_lock.allow_flying;
+
+                if !abilities_lock.allow_flying {
+                    abilities_lock.flying = false;
+                }
+            }
             player.send_abilities_update().await;
         }
         Ok(())
@@ -90,26 +97,55 @@ impl CommandExecutor for WithSpeedExecutor {
         _: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let Some(Arg::Players(targets)) = args.get("players") else {
-            return Err(CommandError::InvalidConsumption(Some(
-                "players".to_string(),
-            )));
+        let Some(Arg::Players(targets)) = args.get("target") else {
+            return Err(CommandError::InvalidConsumption(Some("target".to_string())));
         };
-
-        let Some(Arg::Num(Ok(num))) = args.get("speed") else {
-            return Err(CommandError::InvalidConsumption(Some("speed".to_string())));
+        
+        let Ok(Ok(speed)) = speed_consumer().find_arg_default_name(args) else {
+            return Err(CommandError::InvalidConsumption(Some("speed".to_string())))
         };
 
         for player in targets {
-            let mut abilities_lock = player.abilities.lock().await;
+            {
+                let mut abilities_lock = player.abilities.lock().await;
 
-            abilities_lock.allow_flying = true;
-            let Some(speed) = f32::from_number(num) else {
-                return Err(CommandError::InvalidConsumption(Some("speed".to_string())));
-            };
-            abilities_lock.fly_speed = speed;
+                abilities_lock.allow_flying = true;
+                abilities_lock.fly_speed = speed;
+            }
             player.send_abilities_update().await;
         }
+        Ok(())
+    }
+}
+
+struct BaseExecutor;
+
+#[async_trait]
+impl CommandExecutor for BaseExecutor {
+    async fn execute<'a>(
+        &self,
+        sender: &mut CommandSender,
+        _: &Server,
+        _: &ConsumedArgs<'a>,
+    ) -> Result<(), CommandError> {
+        let Some(player) = sender.as_player() else {
+            return Err(CommandError::GeneralCommandIssue(
+                "Failed to get sender as player.".to_string(),
+            ));
+        };
+
+        {
+            let mut abilities_lock = player.abilities.lock().await;
+
+            abilities_lock.allow_flying = !abilities_lock.allow_flying;
+
+            if !abilities_lock.allow_flying {
+                abilities_lock.flying = false;
+            }
+        }
+
+        player.send_abilities_update().await;
+
         Ok(())
     }
 }

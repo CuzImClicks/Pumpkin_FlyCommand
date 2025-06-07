@@ -8,11 +8,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # This is the base crate with most high-level type definitions
-pumpkin = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin" } 
+pumpkin = { git = "https://github.com/vyPal/Pumpkin.git", branch = "master", package = "pumpkin" } 
 # Other utilities used by Pumpkin (e.g. TextComponent, Vectors...)
-pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-util" }
+pumpkin-util = { git = "https://github.com/vyPal/Pumpkin.git", branch = "master", package = "pumpkin-util" }
 # Macros for easier plugin development
-pumpkin-api-macros = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-api-macros" }
+pumpkin-api-macros = { git = "https://github.com/vyPal/Pumpkin.git", branch = "master", package = "pumpkin-api-macros" }
 
 # A utility allowing plugins to work asynchronously
 async-trait = "0.1"

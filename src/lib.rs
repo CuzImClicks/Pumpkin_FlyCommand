@@ -1,22 +1,31 @@
 use async_trait::async_trait;
 use log::info;
+use pumpkin::plugin::EventHandler;
+use pumpkin::plugin::player::player_join::PlayerJoinEvent;
 use pumpkin::{
     command::{
+        CommandExecutor, CommandSender,
         args::{
-            bounded_num::{BoundedNumArgumentConsumer, ToFromNumber}, players::PlayersArgumentConsumer, Arg, ConsumedArgs, FindArgDefaultName
-        }, dispatcher::CommandError, tree::{
-            builder::{argument, argument_default_name}, CommandTree
-        }, CommandExecutor, CommandSender
+            Arg, ConsumedArgs, FindArgDefaultName,
+            bounded_num::{BoundedNumArgumentConsumer, ToFromNumber},
+            players::PlayersArgumentConsumer,
+        },
+        dispatcher::CommandError,
+        tree::{
+            CommandTree,
+            builder::{argument, argument_default_name},
+        },
     },
     plugin::Context,
     server::Server,
 };
-use pumpkin_api_macros::{plugin_impl, plugin_method};
+use pumpkin_api_macros::{plugin_impl, plugin_method, with_runtime};
 use pumpkin_util::{
     PermissionLvl,
     permission::{Permission, PermissionDefault},
     text::TextComponent,
 };
+use std::sync::Arc;
 
 const NAMES: [&str; 1] = ["fly"];
 const DESCRIPTION: &str = "Gives you the ability to fly.";
@@ -24,7 +33,9 @@ const DESCRIPTION: &str = "Gives you the ability to fly.";
 const PERMISSION_NODE: &str = "fly_command:fly_command";
 
 fn speed_consumer() -> BoundedNumArgumentConsumer<f32> {
-    BoundedNumArgumentConsumer::<f32>::new().name("speed").min(0.0)
+    BoundedNumArgumentConsumer::<f32>::new()
+        .name("speed")
+        .min(0.0)
 }
 
 #[plugin_method]
@@ -36,13 +47,7 @@ async fn on_load(&mut self, server: &Context) -> Result<(), String> {
         .then(
             argument_default_name(PlayersArgumentConsumer)
                 .execute(NoSpeedExecutor)
-                .then(
-                    argument(
-                        "speed",
-                        speed_consumer(),
-                    )
-                    .execute(WithSpeedExecutor),
-                ),
+                .then(argument("speed", speed_consumer()).execute(WithSpeedExecutor)),
         )
         .execute(BaseExecutor);
 
@@ -100,9 +105,9 @@ impl CommandExecutor for WithSpeedExecutor {
         let Some(Arg::Players(targets)) = args.get("target") else {
             return Err(CommandError::InvalidConsumption(Some("target".to_string())));
         };
-        
+
         let Ok(Ok(speed)) = speed_consumer().find_arg_default_name(args) else {
-            return Err(CommandError::InvalidConsumption(Some("speed".to_string())))
+            return Err(CommandError::InvalidConsumption(Some("speed".to_string())));
         };
 
         for player in targets {

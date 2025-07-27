@@ -17,7 +17,7 @@ pumpkin-api-macros = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch
 # A utility allowing plugins to work asynchronously
 async-trait = "0.1"
 # A rust asynchronous runtime
-tokio = "1.42"
+tokio = "1.46"
 # Logging
 log = "0.4"
 

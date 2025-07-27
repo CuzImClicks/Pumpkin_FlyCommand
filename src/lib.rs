@@ -1,13 +1,13 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use log::info;
-use pumpkin::plugin::EventHandler;
-use pumpkin::plugin::player::player_join::PlayerJoinEvent;
 use pumpkin::{
     command::{
         CommandExecutor, CommandSender,
         args::{
             Arg, ConsumedArgs, FindArgDefaultName,
-            bounded_num::{BoundedNumArgumentConsumer, ToFromNumber},
+            bounded_num::BoundedNumArgumentConsumer,
             players::PlayersArgumentConsumer,
         },
         dispatcher::CommandError,
@@ -19,13 +19,12 @@ use pumpkin::{
     plugin::Context,
     server::Server,
 };
-use pumpkin_api_macros::{plugin_impl, plugin_method, with_runtime};
+use pumpkin_api_macros::{plugin_impl, plugin_method};
 use pumpkin_util::{
     PermissionLvl,
     permission::{Permission, PermissionDefault},
     text::TextComponent,
 };
-use std::sync::Arc;
 
 const NAMES: [&str; 1] = ["fly"];
 const DESCRIPTION: &str = "Gives you the ability to fly.";
@@ -39,7 +38,7 @@ fn speed_consumer() -> BoundedNumArgumentConsumer<f32> {
 }
 
 #[plugin_method]
-async fn on_load(&mut self, server: &Context) -> Result<(), String> {
+async fn on_load(&mut self, server: Arc<Context>) -> Result<(), String> {
     pumpkin::init_log!();
     info!("Fly_Command plugin loaded!");
 
@@ -86,6 +85,7 @@ impl CommandExecutor for NoSpeedExecutor {
                     abilities_lock.flying = false;
                 }
             }
+
             player.send_abilities_update().await;
         }
         Ok(())
@@ -134,8 +134,8 @@ impl CommandExecutor for BaseExecutor {
         _: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
         let Some(player) = sender.as_player() else {
-            return Err(CommandError::GeneralCommandIssue(
-                "Failed to get sender as player.".to_string(),
+            return Err(CommandError::CommandFailed(
+                Box::new(TextComponent::text("Failed to get sender as player.")),
             ));
         };
 
